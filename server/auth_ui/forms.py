@@ -7,6 +7,7 @@ class UserRegistrationForm(UserCreationForm):
     first_name = forms.CharField(max_length=101)
     last_name = forms.CharField(max_length=101)
     email = forms.EmailField()
+    # TODO: Add custom error: https://stackoverflow.com/questions/18646450/customize-error-messages-on-django-registration
 
     class Meta:
         model = User
