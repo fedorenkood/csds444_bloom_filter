@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth.forms import SetPasswordForm, AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from auth_ui.models import CustomUserData
@@ -36,6 +36,10 @@ class ChallengeQuestionsForm(forms.ModelForm):
     class Meta:
         model = CustomUserData
         fields = ('challenge_question_1', 'challenge_question_2', 'challenge_question_3')
+
+
+class UserLoginForm(AuthenticationForm):
+    otp_code = forms.CharField(max_length=100)
 
 
 class PasswordResetForm(SetPasswordForm):

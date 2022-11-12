@@ -1,13 +1,15 @@
+import base64
 from io import BytesIO
 
-from django.contrib.auth.models import User
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from .forms import UserRegistrationForm, ChallengeQuestionsForm, User2faValidationForm
-from .forms import PasswordResetForm
 import pyotp
 import qrcode
-import base64
+from django.contrib import messages
+from django.contrib.auth import login as django_auth_login
+from django.contrib.auth.models import User
+from django.shortcuts import render, redirect
+
+from .forms import PasswordResetForm
+from .forms import UserRegistrationForm, ChallengeQuestionsForm, User2faValidationForm, UserLoginForm
 
 
 def home(request):
@@ -36,10 +38,10 @@ def __register_2fa(request, user_form, challenge_questions_form):
     because we want to ensure that the user can actually use 2FA on their new account before we expect them to use
     2FA in future logins."""
     user_2fa_form = User2faValidationForm()
-    if request.POST.get("step", None) == "2fa":
+    if request.POST.get('step', None) == '2fa':
         # If the second step (2FA page) was posted, then validate and finish registering the account:
         user_2fa_form = User2faValidationForm(request.POST)
-        otp_secret = request.POST.get("otp_secret", None)
+        otp_secret = request.POST.get('otp_secret', None)
         if user_2fa_form.is_valid() and otp_secret is not None:
             # Create the pyotp TOTP object for validating expected codes given the secret:
             totp = pyotp.totp.TOTP(otp_secret)
@@ -58,7 +60,7 @@ def __register_2fa(request, user_form, challenge_questions_form):
                 messages.success(request, f'Your account has been created. You can log in now!')
                 return redirect('login')
             else:
-                user_2fa_form.add_error('validation_code', "Failed to authenticate: wrong code.")
+                user_2fa_form.add_error('validation_code', 'Failed to authenticate: wrong code.')
     else:
         # If the first/initial registration step page was posted, then serve the second step (2FA setup):
         otp_secret = pyotp.random_base32()
@@ -75,8 +77,25 @@ def __generate_otp_qrcode(otp_secret, user_email):
     totp_uri = pyotp.totp.TOTP(otp_secret).provisioning_uri(name=user_email, issuer_name='CSDS444 Project')
     qr_code_img = qrcode.make(totp_uri)
     buff = BytesIO()
-    qr_code_img.save(buff, format="JPEG")
+    qr_code_img.save(buff, format='JPEG')
     return base64.b64encode(buff.getvalue()).decode('ascii')
+
+
+def login(request):
+    if request.method == 'POST':
+        login_form = UserLoginForm(data=request.POST)
+        if login_form.is_valid():
+            django_auth_login(request, login_form.get_user())
+            totp = pyotp.totp.TOTP(request.user.customuserdata.otp_secret)
+            user_inputted_code = login_form.cleaned_data['otp_code']
+            if totp.verify(user_inputted_code):
+                return redirect('/')
+            else:
+                login_form.add_error('otp_code', 'Failed to authenticate: wrong 2FA code.')
+    else:
+        login_form = UserLoginForm(request)
+
+    return render(request, 'auth/login.html', {'form': login_form})
 
 
 def password_reset(request):
@@ -95,7 +114,7 @@ def password_reset(request):
                     messages.success(request, f'Your password has been reset.')
                     return redirect('login')
             else:
-                custom_data_form.add_error(None, "Failed challenge questions :((((((((((((((((((((((((((((((((((")
+                custom_data_form.add_error(None, 'Failed challenge questions :((((((((((((((((((((((((((((((((((')
                 context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
                 return render(request, 'auth/password-reset.html', context)
     else:
