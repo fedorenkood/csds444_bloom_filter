@@ -1,5 +1,4 @@
 from django import forms
-from django.forms import ModelForm
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
@@ -10,13 +9,19 @@ class UserRegistrationForm(UserCreationForm):
     first_name = forms.CharField(max_length=101)
     last_name = forms.CharField(max_length=101)
     email = forms.EmailField()
+
     # TODO: Add custom error: https://stackoverflow.com/questions/18646450/customize-error-messages-on-django-registration
 
     class Meta:
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2']
 
-class CustomUserDataForm(forms.ModelForm):
+
+class User2faValidationForm(forms.Form):
+    validation_code = forms.CharField(max_length=50)
+
+
+class ChallengeQuestionsForm(forms.ModelForm):
     def matches_challenge_questions(self, expected: CustomUserData) -> bool:
         """If challenge question answers of this form match those of the given other model."""
         return self.matches_challenge_question('challenge_question_1', expected.challenge_question_1) and \

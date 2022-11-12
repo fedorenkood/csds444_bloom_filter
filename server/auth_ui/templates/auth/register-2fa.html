@@ -1,0 +1,31 @@
+<h3>Register with Two-Factor Authentication</h3>
+<hr>
+
+<form action="" method="POST">
+    {% csrf_token %}
+
+    <input type="hidden" name="step" value="2fa">
+    <input type="hidden" name="otp_secret" value="{{ otp_secret }}">
+
+    <img src="data:image/png;base64, {{ qrcode_img }}">
+
+    {% for field in user_form %}
+        {{ field.as_hidden }}
+    {% endfor %}
+
+    {% for field in challenge_questions_form %}
+        {{ field.as_hidden }}
+    {% endfor %}
+
+    {% for field in user_2fa_form %}
+        <div>
+            <p>{{ field.label }}: <br> {{ field }}</p>
+
+            {% for error in field.errors %}
+                <small style="color: red">{{ error }}</small>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <button type="submit">Confirm and Register</button>
+</form>

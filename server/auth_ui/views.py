@@ -1,9 +1,13 @@
+from io import BytesIO
+
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.core.exceptions import ValidationError
-from .forms import UserRegistrationForm, CustomUserDataForm
+from .forms import UserRegistrationForm, ChallengeQuestionsForm, User2faValidationForm
 from .forms import PasswordResetForm
+import pyotp
+import qrcode
+import base64
 
 
 def home(request):
@@ -13,29 +17,72 @@ def home(request):
 def register(request):
     if request.method == 'POST':
         user_form = UserRegistrationForm(request.POST)
-        custom_data_form = CustomUserDataForm(request.POST)
-        password1 = request.POST["password1"]
-        password2 = request.POST["password2"]
-        # TODO: Check password here
-        if user_form.is_valid() and custom_data_form.is_valid():
-            u = user_form.save()
-            custom_data_form = CustomUserDataForm(request.POST, instance=u.customuserdata)
-            custom_data_form.save()
-
-            messages.success(request, f'Your account has been created. You can log in now!')
-            return redirect('login')
+        challenge_questions_form = ChallengeQuestionsForm(request.POST)
+        if user_form.is_valid() and challenge_questions_form.is_valid():
+            # password1 = request.POST["password1"]
+            # password2 = request.POST["password2"]
+            # TODO: Check password here
+            return __register_2fa(request, user_form, challenge_questions_form)
     else:
         user_form = UserRegistrationForm()
-        custom_data_form = CustomUserDataForm()
-
-    context = {'user_form': user_form, 'custom_data_form': custom_data_form}
+        challenge_questions_form = ChallengeQuestionsForm()
+    context = {'user_form': user_form, 'challenge_questions_form': challenge_questions_form}
     return render(request, 'auth/register.html', context)
+
+
+def __register_2fa(request, user_form, challenge_questions_form):
+    """View for the 2FA registration step, entailing QR code presentation for the TOTP Secret, as well as validation
+    of the user being able to generate validation codes on their phone. Note that 2FA validation is also done here,
+    because we want to ensure that the user can actually use 2FA on their new account before we expect them to use
+    2FA in future logins."""
+    user_2fa_form = User2faValidationForm()
+    if request.POST.get("step", None) == "2fa":
+        # If the second step (2FA page) was posted, then validate and finish registering the account:
+        user_2fa_form = User2faValidationForm(request.POST)
+        otp_secret = request.POST.get("otp_secret", None)
+        if user_2fa_form.is_valid() and otp_secret is not None:
+            # Create the pyotp TOTP object for validating expected codes given the secret:
+            totp = pyotp.totp.TOTP(otp_secret)
+            # Get the user inputted TOTP validation code:
+            user_inputted_code = user_2fa_form.cleaned_data['validation_code']
+            if totp.verify(user_inputted_code):
+                # Save to the basic user table, and acquire a CustomUserData reference:
+                user = user_form.save()
+                # Save challenge questions:
+                ChallengeQuestionsForm(request.POST, instance=user.customuserdata).save(False)
+                # Save OTP Secret for future 2FA logins:
+                user.customuserdata.otp_secret = otp_secret
+                # Commit the save in the db:
+                user.customuserdata.save()
+                # User account should now be finally registered:
+                messages.success(request, f'Your account has been created. You can log in now!')
+                return redirect('login')
+            else:
+                user_2fa_form.add_error('validation_code', "Failed to authenticate: wrong code.")
+    else:
+        # If the first/initial registration step page was posted, then serve the second step (2FA setup):
+        otp_secret = pyotp.random_base32()
+
+    qr_code_base64_str = __generate_otp_qrcode(otp_secret, user_form.cleaned_data['email'])
+
+    context = {'user_form': user_form, 'challenge_questions_form': challenge_questions_form,
+               'user_2fa_form': user_2fa_form, 'otp_secret': otp_secret, 'qrcode_img': qr_code_base64_str}
+    return render(request, 'auth/register-2fa.html', context)
+
+
+def __generate_otp_qrcode(otp_secret, user_email):
+    """Generates TOTP QR Code base64 str for the given secret."""
+    totp_uri = pyotp.totp.TOTP(otp_secret).provisioning_uri(name=user_email, issuer_name='CSDS444 Project')
+    qr_code_img = qrcode.make(totp_uri)
+    buff = BytesIO()
+    qr_code_img.save(buff, format="JPEG")
+    return base64.b64encode(buff.getvalue()).decode('ascii')
 
 
 def password_reset(request):
     if request.method == 'POST':
         user_password_form = PasswordResetForm(user=None, data=request.POST)
-        custom_data_form = CustomUserDataForm(data=request.POST)
+        custom_data_form = ChallengeQuestionsForm(data=request.POST)
         if user_password_form.is_valid() and custom_data_form.is_valid():
             # Fetch user from claimed email:
             user = User.objects.get(email__exact=user_password_form.cleaned_data['email'])
@@ -53,7 +100,7 @@ def password_reset(request):
                 return render(request, 'auth/password-reset.html', context)
     else:
         user_password_form = PasswordResetForm(user=None)
-        custom_data_form = CustomUserDataForm()
+        custom_data_form = ChallengeQuestionsForm()
 
     context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
     return render(request, 'auth/password-reset.html', context)
