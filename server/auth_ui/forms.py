@@ -21,12 +21,17 @@ class User2faValidationForm(forms.Form):
     validation_code = forms.CharField(max_length=50)
 
 
-class ChallengeQuestionsForm(forms.ModelForm):
+class ChallengeQuestionsRegisterForm(forms.ModelForm):
+    class Meta:
+        model = CustomUserData
+        fields = ('challenge_question_1', 'challenge_answer_1', 'challenge_question_2', 'challenge_answer_2', 'challenge_question_3', 'challenge_answer_3')
+
+class ChallengeQuestionsResetForm(forms.ModelForm):
     def matches_challenge_questions(self, expected: CustomUserData) -> bool:
         """If challenge question answers of this form match those of the given other model."""
-        return self.matches_challenge_question('challenge_question_1', expected.challenge_question_1) and \
-               self.matches_challenge_question('challenge_question_2', expected.challenge_question_2) and \
-               self.matches_challenge_question('challenge_question_3', expected.challenge_question_3)
+        return self.matches_challenge_question('challenge_answer_1', expected.challenge_answer_1) and \
+               self.matches_challenge_question('challenge_answer_2', expected.challenge_answer_2) and \
+               self.matches_challenge_question('challenge_answer_3', expected.challenge_answer_3)
 
     def matches_challenge_question(self: object, field: str, expected: str) -> bool:
         """If challenge question answer for given field matches the expected answer value."""
@@ -35,7 +40,7 @@ class ChallengeQuestionsForm(forms.ModelForm):
 
     class Meta:
         model = CustomUserData
-        fields = ('challenge_question_1', 'challenge_question_2', 'challenge_question_3')
+        fields = ('challenge_answer_1', 'challenge_answer_2', 'challenge_answer_3')
 
 
 class UserLoginForm(AuthenticationForm):

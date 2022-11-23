@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 
 from .forms import PasswordResetForm
-from .forms import UserRegistrationForm, ChallengeQuestionsForm, User2faValidationForm, UserLoginForm
+from .forms import UserRegistrationForm, ChallengeQuestionsRegisterForm, ChallengeQuestionsResetForm, User2faValidationForm, UserLoginForm
 
 
 def home(request):
@@ -19,7 +19,7 @@ def home(request):
 def register(request):
     if request.method == 'POST':
         user_form = UserRegistrationForm(request.POST)
-        challenge_questions_form = ChallengeQuestionsForm(request.POST)
+        challenge_questions_form = ChallengeQuestionsRegisterForm(request.POST)
         if user_form.is_valid() and challenge_questions_form.is_valid():
             # password1 = request.POST["password1"]
             # password2 = request.POST["password2"]
@@ -27,7 +27,7 @@ def register(request):
             return __register_2fa(request, user_form, challenge_questions_form)
     else:
         user_form = UserRegistrationForm()
-        challenge_questions_form = ChallengeQuestionsForm()
+        challenge_questions_form = ChallengeQuestionsRegisterForm()
     context = {'user_form': user_form, 'challenge_questions_form': challenge_questions_form}
     return render(request, 'auth/register.html', context)
 
@@ -51,7 +51,7 @@ def __register_2fa(request, user_form, challenge_questions_form):
                 # Save to the basic user table, and acquire a CustomUserData reference:
                 user = user_form.save()
                 # Save challenge questions:
-                ChallengeQuestionsForm(request.POST, instance=user.customuserdata).save(False)
+                ChallengeQuestionsResetForm(request.POST, instance=user.customuserdata).save(False)
                 # Save OTP Secret for future 2FA logins:
                 user.customuserdata.otp_secret = otp_secret
                 # Commit the save in the db:
@@ -101,7 +101,7 @@ def login(request):
 def password_reset(request):
     if request.method == 'POST':
         user_password_form = PasswordResetForm(user=None, data=request.POST)
-        custom_data_form = ChallengeQuestionsForm(data=request.POST)
+        custom_data_form = ChallengeQuestionsResetForm(data=request.POST)
         if user_password_form.is_valid() and custom_data_form.is_valid():
             # Fetch user from claimed email:
             user = User.objects.get(email__exact=user_password_form.cleaned_data['email'])
@@ -119,7 +119,32 @@ def password_reset(request):
                 return render(request, 'auth/password-reset.html', context)
     else:
         user_password_form = PasswordResetForm(user=None)
-        custom_data_form = ChallengeQuestionsForm()
+        custom_data_form = ChallengeQuestionsResetForm()
+
+    context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
+    return render(request, 'auth/password-reset.html', context)
+
+def password_reset_cq(request, user_password_form):
+    if request.method == 'POST':
+        custom_data_form = ChallengeQuestionsResetForm(data=request.POST)
+        if user_password_form.is_valid() and custom_data_form.is_valid():
+            # Fetch user from claimed email:
+            user = User.objects.get(email__exact=user_password_form.cleaned_data['email'])
+            # Check if challenge question responses were correct:
+            if custom_data_form.matches_challenge_questions(user.customuserdata):
+                # Save user's new password:
+                user_password_form = PasswordResetForm(user=user, data=request.POST)
+                if user_password_form.is_valid():
+                    user_password_form.save()
+                    messages.success(request, f'Your password has been reset.')
+                    return redirect('login')
+            else:
+                custom_data_form.add_error(None, 'Failed challenge questions :((((((((((((((((((((((((((((((((((')
+                context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
+                return render(request, 'auth/password-reset.html', context)
+    else:
+        user_password_form = PasswordResetForm(user=None)
+        custom_data_form = ChallengeQuestionsResetForm()
 
     context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
     return render(request, 'auth/password-reset.html', context)
