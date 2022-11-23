@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect
 
 from .forms import PasswordResetForm
 from .forms import UserRegistrationForm, ChallengeQuestionsRegisterForm, ChallengeQuestionsResetForm, User2faValidationForm, UserLoginForm
-
+import BloomFilter
 
 def home(request):
     return render(request, 'auth/home.html')
@@ -21,10 +21,12 @@ def register(request):
         user_form = UserRegistrationForm(request.POST)
         challenge_questions_form = ChallengeQuestionsRegisterForm(request.POST)
         if user_form.is_valid() and challenge_questions_form.is_valid():
-            # password1 = request.POST["password1"]
-            # password2 = request.POST["password2"]
-            # TODO: Check password here
-            return __register_2fa(request, user_form, challenge_questions_form)
+            valid, message = BloomFilter.validate_password(request.POST["password1"], request.POST["password2"])
+            print(valid, message)
+            if valid:
+                return __register_2fa(request, user_form, challenge_questions_form)
+            else:
+                messages.error(request, message)
     else:
         user_form = UserRegistrationForm()
         challenge_questions_form = ChallengeQuestionsRegisterForm()
