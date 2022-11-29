@@ -2,7 +2,9 @@ from django import forms
 from django.contrib.auth.forms import SetPasswordForm, AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+
 from auth_ui.models import CustomUserData
+import BloomFilter
 
 
 class UserRegistrationForm(UserCreationForm):
@@ -10,7 +12,12 @@ class UserRegistrationForm(UserCreationForm):
     last_name = forms.CharField(max_length=101)
     email = forms.EmailField()
 
-    # TODO: Add custom error: https://stackoverflow.com/questions/18646450/customize-error-messages-on-django-registration
+    def validate(self, request):
+        valid, message = BloomFilter.validate_password(request.POST["password1"], request.POST["password2"])
+        if not valid:
+            self.add_error('password1', message)
+            return False
+        return True
 
     class Meta:
         model = User
