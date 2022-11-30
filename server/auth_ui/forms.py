@@ -2,10 +2,8 @@ from django import forms
 from django.contrib.auth.forms import SetPasswordForm, AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-
 from auth_ui.models import CustomUserData
 import BloomFilter
-
 
 class UserRegistrationForm(UserCreationForm):
     first_name = forms.CharField(max_length=101)
@@ -54,10 +52,25 @@ class UserLoginForm(AuthenticationForm):
     otp_code = forms.CharField(max_length=100)
 
 
-class PasswordResetForm(SetPasswordForm):
+class EmailPasswordResetForm(forms.Form):
     """Note: usage is kind of dirty; this form doubles as both a raw anonymous input for email & new password,
     but also is used for the base class functionality of saving the new password given a registered user."""
     email = forms.EmailField()
 
     class Meta:
-        fields = ['new_password1', 'new_password2', 'email']
+        fields = ['email']
+
+class PasswordResetForm(SetPasswordForm):
+    """Note: usage is kind of dirty; this form doubles as both a raw anonymous input for email & new password,
+    but also is used for the base class functionality of saving the new password given a registered user."""
+    email = forms.EmailField()
+
+    def validate(self, request):
+        valid, message = BloomFilter.validate_password(request.POST["new_password1"], request.POST["new_password2"])
+        if not valid:
+            self.add_error('new_password1', message)
+            return False
+        return True
+
+    class Meta:
+        fields = ['new_password1', 'new_password2']

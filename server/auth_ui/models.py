@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-
+from django import forms
 
 CHALLENGE_QUESTIONS = [
     ('what street did you grow up on?', 'What street did you grow up on?'),
@@ -22,15 +22,14 @@ class CustomUserData(models.Model):
     See: https://simpleisbetterthancomplex.com/tutorial/2016/07/22/how-to-extend-django-user-model.html#onetoone"""
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
-    challenge_question_1 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS)
+    challenge_question_1 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS, default='what street did you grow up on?')
     challenge_answer_1 = models.CharField(max_length=200, default=' ')
-    challenge_question_2 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS)
+    challenge_question_2 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS, default='what was your first pet\'s name?')
     challenge_answer_2 = models.CharField(max_length=200, default=' ')
-    challenge_question_3 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS)
+    challenge_question_3 = models.CharField(max_length=200, choices=CHALLENGE_QUESTIONS, default='what is your mom\'s maiden name?')
     challenge_answer_3 = models.CharField(max_length=200, default=' ')
 
     otp_secret = models.CharField(max_length=100, default='')
-
 
 @receiver(post_save, sender=User)
 def create_user_custom_data(sender, instance, created, **kwargs):
