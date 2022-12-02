@@ -8,7 +8,7 @@ from django.contrib.auth import login as django_auth_login
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 
-from .forms import PasswordResetForm
+from .forms import PasswordResetForm, EmailPasswordResetForm
 from .forms import UserRegistrationForm, ChallengeQuestionsRegisterForm, ChallengeQuestionsResetForm, User2faValidationForm, UserLoginForm
 
 def home(request):
@@ -47,7 +47,7 @@ def __register_2fa(request, user_form, challenge_questions_form):
                 # Save to the basic user table, and acquire a CustomUserData reference:
                 user = user_form.save()
                 # Save challenge questions:
-                ChallengeQuestionsResetForm(request.POST, instance=user.customuserdata).save(False)
+                ChallengeQuestionsRegisterForm(request.POST, instance=user.customuserdata).save(True)
                 # Save OTP Secret for future 2FA logins:
                 user.customuserdata.otp_secret = otp_secret
                 # Commit the save in the db:
@@ -94,53 +94,45 @@ def login(request):
     return render(request, 'auth/login.html', {'form': login_form})
 
 
-def password_reset(request):
+def password_reset(request, user):
+    cq1 = user.customuserdata.challenge_question_1
+    cq2 = user.customuserdata.challenge_question_2
+    cq3 = user.customuserdata.challenge_question_3
+    first = True
     if request.method == 'POST':
-        user_password_form = PasswordResetForm(user=None, data=request.POST)
+        user_password_form = PasswordResetForm(user=user, data=request.POST)
         custom_data_form = ChallengeQuestionsResetForm(data=request.POST)
         if user_password_form.is_valid() and custom_data_form.is_valid():
-            # Fetch user from claimed email:
-            user = User.objects.get(email__exact=user_password_form.cleaned_data['email'])
             # Check if challenge question responses were correct:
             if custom_data_form.matches_challenge_questions(user.customuserdata):
                 # Save user's new password:
-                user_password_form = PasswordResetForm(user=user, data=request.POST)
-                if user_password_form.is_valid():
+                if user_password_form.is_valid() and user_password_form.validate(request):
                     user_password_form.save()
                     messages.success(request, f'Your password has been reset.')
                     return redirect('login')
+                else:
+                    first = False
             else:
-                custom_data_form.add_error(None, 'Failed challenge questions :((((((((((((((((((((((((((((((((((')
-                context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
+                first = False
+                custom_data_form.add_error(None, 'Failed challenge questions')
+                context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form, 'cq1': cq1, 'cq2': cq2, 'cq3': cq3, 'first': first}
                 return render(request, 'auth/password-reset.html', context)
     else:
         user_password_form = PasswordResetForm(user=None)
         custom_data_form = ChallengeQuestionsResetForm()
 
-    context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
+    context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form, 'cq1': cq1, 'cq2': cq2, 'cq3': cq3, 'first': first}
     return render(request, 'auth/password-reset.html', context)
 
-def password_reset_cq(request, user_password_form):
+def password_reset_email(request):
     if request.method == 'POST':
-        custom_data_form = ChallengeQuestionsResetForm(data=request.POST)
-        if user_password_form.is_valid() and custom_data_form.is_valid():
+        user_password_form = EmailPasswordResetForm(data=request.POST)
+        if user_password_form.is_valid():
             # Fetch user from claimed email:
             user = User.objects.get(email__exact=user_password_form.cleaned_data['email'])
-            # Check if challenge question responses were correct:
-            if custom_data_form.matches_challenge_questions(user.customuserdata):
-                # Save user's new password:
-                user_password_form = PasswordResetForm(user=user, data=request.POST)
-                if user_password_form.is_valid():
-                    user_password_form.save()
-                    messages.success(request, f'Your password has been reset.')
-                    return redirect('login')
-            else:
-                custom_data_form.add_error(None, 'Failed challenge questions :((((((((((((((((((((((((((((((((((')
-                context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
-                return render(request, 'auth/password-reset.html', context)
+            return password_reset(request, user)
     else:
-        user_password_form = PasswordResetForm(user=None)
-        custom_data_form = ChallengeQuestionsResetForm()
+        user_password_form = EmailPasswordResetForm()
 
-    context = {'user_password_form': user_password_form, 'custom_data_form': custom_data_form}
-    return render(request, 'auth/password-reset.html', context)
+    context = {'user_password_form': user_password_form}
+    return render(request, 'auth/password-reset-email.html', context)

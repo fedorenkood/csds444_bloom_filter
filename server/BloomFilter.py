@@ -48,6 +48,18 @@ def bloom_filter_validate(password):
 def validate_password(password1, password2):
     if len(password1) < 6:
         return False, "Password must be at least 6 characters."
+    noLetter = True
+    noNumber = True
+    for c in password1:
+        if c.isalpha(): #Checks that password contains at least 1 letter
+            noLetter = False
+        elif c.isdigit(): #Checks that password contains at least 1 number
+            noNumber = False
+
+    if noLetter:
+        return False, "Password must contain at least 1 letter"
+    if noNumber:
+        return False, "Password must contain at least 1 number"
     if password1 != password2:
         return False, "Passwords must match."
     if not bloom_filter_validate(password1):
