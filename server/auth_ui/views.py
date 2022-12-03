@@ -3,7 +3,6 @@ from io import BytesIO
 
 import pyotp
 import qrcode
-from django.contrib import messages
 from django.contrib.auth import login as django_auth_login
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
@@ -53,7 +52,6 @@ def __register_2fa(request, user_form, challenge_questions_form):
                 # Commit the save in the db:
                 user.customuserdata.save()
                 # User account should now be finally registered:
-                messages.success(request, f'Your account has been created. You can log in now!')
                 return redirect('login')
             else:
                 user_2fa_form.add_error('validation_code', 'Failed to authenticate: wrong code.')
@@ -108,7 +106,6 @@ def password_reset(request, user):
                 # Save user's new password:
                 if user_password_form.is_valid() and user_password_form.validate(request):
                     user_password_form.save()
-                    messages.success(request, f'Your password has been reset.')
                     return redirect('login')
                 else:
                     first = False
